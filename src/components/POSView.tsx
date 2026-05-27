@@ -29,18 +29,20 @@ export default function POSView({
 }: POSViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [imageStatuses, setImageStatuses] = useState<Record<number, 'loading' | 'loaded' | 'error'>>({});
 
   const fCOP = (n: number) => '$' + Math.round(n || 0).toLocaleString('es-CO');
 
   // Categories extracted from products
   const categories = useMemo(() => {
-    const cats = new Set(products.map((p) => p.cat || 'General'));
+    const cats = new Set(products.filter(p => p.isActive !== false).map((p) => p.cat || 'General'));
     return ['Todos', ...Array.from(cats)];
   }, [products]);
 
   // Filtered products list
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      if (p.isActive === false) return false;
       const matchCat = selectedCategory === 'Todos' || p.cat === selectedCategory;
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       return matchCat && matchSearch;
@@ -342,7 +344,7 @@ export default function POSView({
             </div>
 
             {/* Horizontal Categories Row */}
-            <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-hide mb-4 text-left">
               {categories.map((c) => (
                 <button
                   key={c}
@@ -359,26 +361,77 @@ export default function POSView({
             </div>
 
             {/* Quick-add Dishes Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-56 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[520px] overflow-y-auto pr-1">
               {filteredProducts.map((p) => {
                 const lowStock = p.stock <= p.min;
+                const imgStatus = imageStatuses[p.id] || 'loading';
+
                 return (
                   <button
                     key={p.id}
                     disabled={p.stock <= 0}
                     onClick={() => onAddProductToTable(p.id)}
-                    className={`p-3.5 glass-panel rounded-2xl flex flex-col text-left transition-all hover:border-[#00f2ff] hover:bg-white/5 active:scale-95 cursor-pointer ${
+                    className={`p-2.5 glass-panel rounded-2xl flex flex-col text-left transition-all hover:border-[#00f2ff] hover:bg-white/5 active:scale-95 cursor-pointer relative ${
                       p.stock <= 0
-                        ? 'opacity-30 cursor-not-allowed border-white/5'
+                        ? 'opacity-35 cursor-not-allowed border-white/5'
                         : 'border-white/10'
                     }`}
                   >
-                    <span className="text-xs font-extrabold text-white line-clamp-2 min-h-8 mb-2 leading-snug">
+                    {p.imageUrl ? (
+                      <div className="w-full h-24 rounded-xl overflow-hidden mb-2 bg-slate-950 flex items-center justify-center relative border border-white/5">
+                        {imgStatus === 'loading' && (
+                          <div className="absolute inset-0 bg-slate-900/60 animate-pulse flex flex-col items-center justify-center">
+                            <span className="text-[14px] animate-spin">🍲</span>
+                            <span className="text-[7px] uppercase font-bold text-slate-500 mt-1">Cargando</span>
+                          </div>
+                        )}
+                        {imgStatus === 'error' ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-slate-500">
+                            <span className="text-[12px] opacity-80">🥘</span>
+                            <span className="text-[8px] uppercase font-bold text-rose-500/80 mt-1">Sin Imagen</span>
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setImageStatuses(prev => ({ ...prev, [p.id]: 'loading' }));
+                              }}
+                              className="text-[7px] mt-1 text-[#00f2ff] underline uppercase font-bold tracking-wider hover:text-white"
+                            >
+                              Reintentar
+                            </span>
+                          </div>
+                        ) : (
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            className={`w-full h-full object-cover transition-all duration-300 ${imgStatus === 'loading' ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+                            referrerPolicy="no-referrer"
+                            onLoad={() => setImageStatuses(prev => ({ ...prev, [p.id]: 'loaded' }))}
+                            onError={() => setImageStatuses(prev => ({ ...prev, [p.id]: 'error' }))}
+                          />
+                        )}
+                        {lowStock && p.stock > 0 && (
+                          <span className="absolute top-1 right-1 bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            Bajo
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-full h-24 rounded-xl mb-2 bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center border border-white/5 text-slate-500 relative">
+                        <span className="text-[14px]">🍲</span>
+                        <span className="text-[8px] uppercase tracking-wider text-slate-600 mt-0.5">Sin Foto</span>
+                        {lowStock && p.stock > 0 && (
+                          <span className="absolute top-1 right-1 bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            Bajo
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <span className="text-[10px] font-extrabold text-white line-clamp-2 mb-1 leading-snug uppercase">
                       {p.name}
                     </span>
-                    <div className="flex justify-between items-center w-full mt-auto">
-                      <span className="text-xs font-mono-numbers font-bold text-[#00f2ff]">{fCOP(p.price)}</span>
-                      <span className={`text-[9px] font-extrabold ${lowStock ? 'text-amber-400' : 'text-slate-500'}`}>
+                    <div className="flex justify-between items-center w-full mt-auto pt-1 border-t border-white/5 text-left">
+                      <span className="text-[10px] font-mono-numbers font-bold text-[#00f2ff]">{fCOP(p.price)}</span>
+                      <span className={`text-[8px] font-extrabold ${lowStock ? 'text-amber-400' : 'text-slate-500'}`}>
                         {p.stock} U
                       </span>
                     </div>

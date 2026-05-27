@@ -48,9 +48,18 @@ export default function Sidebar({ activeTab, onTabChange, onCloseShift }: Sideba
           {/* Subtle background glow effect */}
           <div className="absolute top-0 right-0 w-12 h-12 bg-[var(--app-accent)]/5 rounded-full blur-lg group-hover:bg-[var(--app-accent)]/10 transition-all duration-300" />
           
-          <div className="w-12 h-12 rounded-2xl bg-[var(--app-bg-secondary)] border border-[var(--app-border-color)] flex items-center justify-center text-2xl shadow-sm mb-2 relative group-hover:scale-105 transition-all duration-300">
-            {business.logoUrl || '🍽️'}
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[var(--app-bg-secondary)] flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--app-bg-secondary)] border border-[var(--app-border-color)] flex items-center justify-center text-2xl shadow-sm mb-2 relative group-hover:scale-105 transition-all duration-300 overflow-hidden">
+            {business.logoUrl && (business.logoUrl.startsWith('http') || business.logoUrl.startsWith('data:image')) ? (
+              <img 
+                src={business.logoUrl} 
+                alt="Logo" 
+                className="w-full h-full object-contain p-1.5"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span>{business.logoUrl || '🍽️'}</span>
+            )}
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[var(--app-bg-secondary)] flex items-center justify-center shadow-sm z-10">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             </div>
           </div>

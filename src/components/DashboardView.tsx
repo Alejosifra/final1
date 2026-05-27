@@ -1,5 +1,6 @@
 import { Sale, CashMovement } from '../types';
 import { TrendingUp, Coins, Users, CheckCircle, ArrowUpRight, ArrowDownRight, Wallet, Receipt } from 'lucide-react';
+import { useSettingsStore } from '../stores/settingsStore';
 
 interface DashboardViewProps {
   sales: Sale[];
@@ -52,8 +53,41 @@ export default function DashboardView({
     }
   });
 
+  const { business } = useSettingsStore();
+
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Brand Identity Banner */}
+      <div className="glass-panel rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-white/10 relative overflow-hidden bg-gradient-to-r from-slate-950 to-slate-900 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-4xl shadow-inner overflow-hidden flex-shrink-0">
+            {business.logoUrl && (business.logoUrl.startsWith('http') || business.logoUrl.startsWith('data:image')) ? (
+              <img 
+                src={business.logoUrl} 
+                alt="Logo" 
+                className="w-full h-full object-contain p-1.5"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span>{business.logoUrl || '🍽️'}</span>
+            )}
+          </div>
+          <div className="text-left">
+            <h2 className="text-xl font-black text-white tracking-wide uppercase">
+              {business.restaurantName || 'LUAL GASTRO BAR'}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-extrabold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#00f2ff] animate-pulse" />
+              Panel de Control e Inteligencia Operativa • NIT: {business.nit || '901.342.887-5'}
+            </p>
+          </div>
+        </div>
+        <div className="text-right flex flex-col items-center sm:items-end">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Ubicación</span>
+          <p className="text-xs font-semibold text-slate-300 mt-1 uppercase">{business.address || 'Calle 10a #9-44, Medellín, CO'}</p>
+        </div>
+      </div>
+
       {/* Prime Stats Block */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="glass-panel rounded-3xl p-6 relative overflow-hidden transition-all duration-300 hover:scale-[1.01] hover:border-[#00f2ff]/40">

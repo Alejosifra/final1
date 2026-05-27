@@ -6,6 +6,12 @@ export interface Product {
   stock: number;
   min: number;
   cat: string;
+  imageUrl?: string;
+  tax?: number;        // IVA (%)
+  barcode?: string;
+  provider?: string;
+  unitType?: string;   // e.g. "Unidad", "kg", "litro"
+  isActive?: boolean;  // toggle status
 }
 
 export interface CartItem {

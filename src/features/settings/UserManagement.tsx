@@ -13,6 +13,7 @@ export default function UserManagement({ onShowToast }: UserManagementProps) {
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<ExtendedUser | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'employees' | 'permissions'>('employees');
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // User fields
   const [fullname, setFullname] = useState('');
@@ -95,9 +96,6 @@ export default function UserManagement({ onShowToast }: UserManagementProps) {
   };
 
   const handleDeleteUser = async (id: string, name: string) => {
-    const confirmation = window.confirm(`¿Está seguro de que desea eliminar permanentemente al colaborador "${name}"?\n\nEsta acción eliminará su PIN, su cuenta de acceso y se reportará en la auditoría del sistema.`);
-    if (!confirmation) return;
-
     try {
       await UsersService.deleteUser(id);
       onShowToast(`Colaborador "${name}" eliminado permanentemente de la base de datos y sincronizado con Firebase.`, 'success');
@@ -105,6 +103,7 @@ export default function UserManagement({ onShowToast }: UserManagementProps) {
       if (editingUser?.id === id) {
         resetForm();
       }
+      setUserToDelete(null);
     } catch (err) {
       console.error(err);
       onShowToast('Ocurrió un error al remover al colaborador.', 'error');
@@ -316,7 +315,7 @@ export default function UserManagement({ onShowToast }: UserManagementProps) {
 
                             {/* CRITICAL / HIGH VISIBILITY RED DELETE ACTION */}
                             <button
-                              onClick={() => handleDeleteUser(u.id, u.fullname)}
+                              onClick={() => setUserToDelete({ id: u.id, name: u.fullname })}
                               disabled={isSuperAdmin}
                               className={`p-2 rounded-xl border transition-all flex items-center justify-center ${
                                 isSuperAdmin
@@ -584,6 +583,52 @@ export default function UserManagement({ onShowToast }: UserManagementProps) {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-slate-900 border border-rose-500/30 rounded-[28px] max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <span className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                <Trash2 className="w-6 h-6 stroke-[2.5]" />
+              </span>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">¿Confirmar Eliminación?</h3>
+                <p className="text-[11px] text-rose-400 font-bold uppercase tracking-wider">Acción Crítica e Irreversible</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              ¿Está seguro de que desea eliminar permanentemente al colaborador <strong className="text-white">"{userToDelete.name}"</strong>? Esta opción eliminará su cuenta de acceso, su PIN de autorización, y guardará un registro de baja en la base de datos de auditoría.
+            </p>
+
+            <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5 space-y-2">
+              <div className="flex items-center gap-2 text-[10px] uppercase font-black text-amber-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Advertencia de Sincronización</span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Este cambio se registrará inmediatamente en la cola local de sincronización y se replicará de forma permanente en Firebase Cloud.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDeleteUser(userToDelete.id, userToDelete.name)}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700 text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-900/30 transition-all active:scale-95"
+              >
+                Eliminar Permanentemente
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

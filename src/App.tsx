@@ -19,12 +19,14 @@ import { useAuthStore, SYSTEM_USERS } from './stores/authStore';
 import { EnterpriseDBService } from './services/supabaseService';
 import { playChirpSound, playCashRegisterSound } from './utils/audio';
 import { OfflineSyncEngine } from './services/dbQueue';
+import { SettingsService } from './services/settingsService';
 
 export default function App() {
   // Initialize customizable appearance theme variables
   useTheme();
 
   const { currentUser, switchUser, checkPermission } = useAuthStore();
+  const { business } = useSettingsStore();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? window.navigator.onLine : true);
   const [syncQueueCount, setSyncQueueCount] = useState(0);
@@ -44,9 +46,24 @@ export default function App() {
     useThemeStore.getState().loadFromLocal();
     useSettingsStore.getState().loadFromLocal();
 
+    // Fetch latest cloud settings on start if online
+    if (typeof window !== 'undefined' && window.navigator.onLine) {
+      SettingsService.fetchLatestSettings().then((cloudSettings) => {
+        if (cloudSettings) {
+          useSettingsStore.getState().updateBusiness(cloudSettings);
+        }
+      });
+    }
+
     const handleOnline = () => {
       setIsOnline(true);
-      showToast('Conexión a internet restablecida. Sincronización Firebase activa.', 'success');
+      showToast('Conexión a internet restablecida. Sincronizando datos locales...', 'info');
+      OfflineSyncEngine.syncBackground().then((res) => {
+        if (res.successCount > 0) {
+          showToast(`¡Sincronización completada! ${res.successCount} registros subidos con éxito.`, 'success');
+        }
+        setSyncQueueCount(OfflineSyncEngine.getQueue().length);
+      });
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -55,6 +72,16 @@ export default function App() {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Auto-sync on startup if online
+    if (typeof window !== 'undefined' && window.navigator.onLine) {
+      OfflineSyncEngine.syncBackground().then((res) => {
+        if (res.successCount > 0) {
+          showToast(`Sincronización automática de inicio: ${res.successCount} registros subidos.`, 'success');
+        }
+        setSyncQueueCount(OfflineSyncEngine.getQueue().length);
+      });
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -587,18 +614,44 @@ export default function App() {
     setShowAccountStatementModal(true);
   };
 
+  // Map client Product to Firestore compatible blueprint properties
+  const mapProductToFirestore = (p: Product) => ({
+    id: p.id,
+    name: p.name,
+    cost_price: p.cost,
+    sale_price: p.price,
+    stock_qty: p.stock,
+    min_stock_qty: p.min,
+    category_id: p.cat,
+    imageUrl: p.imageUrl || '',
+    tax: p.tax || 0,
+    barcode: p.barcode || '',
+    provider: p.provider || '',
+    unitType: p.unitType || 'Unidad',
+    isActive: p.isActive !== false,
+  });
+
   // Adding product directly to lists (InventoryView callback)
   const handleAddProduct = (p: Omit<Product, 'id'>) => {
-    setDb((prev) => {
-      const newItem: Product = {
-        id: Date.now(),
-        ...p,
-      };
-      return {
-        ...prev,
-        products: [...prev.products, newItem],
-      };
-    });
+    const newItem: Product = {
+      id: Date.now(),
+      isActive: true,
+      ...p,
+    };
+    setDb((prev) => ({
+      ...prev,
+      products: [...prev.products, newItem],
+    }));
+    OfflineSyncEngine.enqueueOp('products', 'CREATE', mapProductToFirestore(newItem), String(newItem.id));
+  };
+
+  // Updating product details (InventoryView callback)
+  const handleUpdateProduct = (updated: Product) => {
+    setDb((prev) => ({
+      ...prev,
+      products: prev.products.map((p) => (p.id === updated.id ? updated : p)),
+    }));
+    OfflineSyncEngine.enqueueOp('products', 'UPDATE', mapProductToFirestore(updated), String(updated.id));
   };
 
   // Deleting product in core menu
@@ -607,6 +660,7 @@ export default function App() {
       ...prev,
       products: prev.products.filter((p) => p.id !== id),
     }));
+    OfflineSyncEngine.enqueueOp('products', 'DELETE', {}, String(id));
   };
 
   // Overwriting products bulk list via SheetJS excel upload
@@ -1104,6 +1158,7 @@ export default function App() {
               <InventoryView
                 products={db.products}
                 onAddProduct={handleAddProduct}
+                onUpdateProduct={handleUpdateProduct}
                 onDeleteProduct={handleDeleteProduct}
                 onBulkUpdateProducts={handleBulkUpdateProducts}
                 onShowToast={showToast}
@@ -1142,6 +1197,10 @@ export default function App() {
               <ReportsView
                 sales={db.history}
                 products={db.products}
+                shifts={db.shifts}
+                expenses={db.expenses}
+                clientes={db.clientes}
+                abonos={db.abonos}
               />
             </ProtectedRoute>
           )}
@@ -1561,8 +1620,12 @@ export default function App() {
             {/* Ticket Simulator Preview */}
             <div className="bg-slate-50 border border-slate-200 border-dashed rounded-2xl p-4.5 font-mono text-[11px] leading-relaxed text-slate-900 max-h-56 overflow-y-auto mb-6">
               <center>
-                <b className="text-xs">LUAL GASTRO POS — TICKET</b>
-                <br />
+                {business.logoUrl && (business.logoUrl.startsWith('http') || business.logoUrl.startsWith('data:image')) ? (
+                  <img src={business.logoUrl} alt="Logo" className="w-10 h-10 object-contain mx-auto mb-1.5" />
+                ) : (
+                  <span className="text-xl block mb-1">{business.logoUrl || '🍽️'}</span>
+                )}
+                <b className="text-xs uppercase block">{business.restaurantName || 'LUAL GASTRO POS'}</b>
                 <span>Fecha: {new Date().toLocaleString()}</span>
               </center>
               <hr className="my-3 border-t border-slate-400 border-dashed" />
