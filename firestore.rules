@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (default-deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      // In developer environments we support emails from Google Login auth token
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation definitions
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'email', 'fullname', 'role', 'is_active', 'username'])
+          && data.id is string && data.id.size() <= 128
+          && data.email is string && data.email.size() <= 128
+          && data.fullname is string && data.fullname.size() <= 128
+          && data.role is string && (data.role == 'Admin' || data.role == 'Cajero' || data.role == 'Mesero' || data.role == 'Cocina' || data.role == 'Supervisor')
+          && data.is_active is bool
+          && data.username is string && data.username.size() <= 128;
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['id', 'nit_cc', 'fullname', 'credit_limit', 'current_debt'])
+          && data.id is int
+          && data.nit_cc is string && data.nit_cc.size() <= 64
+          && data.fullname is string && data.fullname.size() <= 128
+          && data.credit_limit is number && data.credit_limit >= 0
+          && data.current_debt is number;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'cost_price', 'sale_price', 'stock_qty'])
+          && data.id is int
+          && data.name is string && data.name.size() <= 128
+          && data.cost_price is number && data.cost_price >= 0
+          && data.sale_price is number && data.sale_price >= 0
+          && data.stock_qty is int;
+    }
+
+    function isValidTable(data) {
+      return data.keys().hasAll(['id', 'status'])
+          && data.id is string && data.id.size() <= 64
+          && data.status is string && (data.status == 'Libre' || data.status == 'Ocupada' || data.status == 'Cuenta_Lista');
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'table_id', 'total_amount', 'payment_method_selected', 'created_at'])
+          && data.id is string && data.id.size() <= 128
+          && data.table_id is string && data.table_id.size() <= 128
+          && data.total_amount is number && data.total_amount >= 0
+          && data.payment_method_selected is string && (data.payment_method_selected == 'Efectivo' || data.payment_method_selected == 'Tarjeta' || data.payment_method_selected == 'Transf' || data.payment_method_selected == 'Credito')
+          && (data.created_at is string || data.created_at is timestamp);
+    }
+
+    function isValidOrderItem(data) {
+      return data.keys().hasAll(['order_id', 'product_name', 'quantity', 'unit_price'])
+          && data.order_id is string && data.order_id.size() <= 128
+          && data.product_name is string && data.product_name.size() <= 128
+          && data.quantity is int && data.quantity > 0
+          && data.unit_price is number && data.unit_price >= 0;
+    }
+
+    function isValidInventoryMovement(data) {
+      return data.keys().hasAll(['product_id', 'quantity_delta', 'movement_type'])
+          && data.product_id is int
+          && data.quantity_delta is int
+          && data.movement_type is string && data.movement_type.size() <= 128;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['id', 'restaurant_name', 'nit'])
+          && data.id is string && data.id.size() <= 128
+          && data.restaurant_name is string && data.restaurant_name.size() <= 128
+          && data.nit is string && data.nit.size() <= 64;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['action_type', 'module', 'action_details'])
+          && data.action_type is string && data.action_type.size() <= 128
+          && data.module is string && data.module.size() <= 128;
+    }
+
+    // Rules matching individual collections
+    match /user_profiles/{profileId} {
+      allow select: if isSignedIn();
+      allow create: if isSignedIn() && isValidUserProfile(incoming()) && (incoming().id == profileId || profileId == 'seed');
+      allow update: if isSignedIn() && isValidUserProfile(incoming()) && incoming().id == profileId;
+      allow delete: if false; // Profiles are never hard deleted directly by standard users
+    }
+
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidClient(incoming());
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidProduct(incoming());
+    }
+
+    match /restaurant_tables/{tableId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidTable(incoming());
+    }
+
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      // Allow creation of orders synchronously matching invoice integrity checks
+      allow create: if isSignedIn() && isValidOrder(incoming());
+      allow update: if isSignedIn() && isValidOrder(incoming()) && incoming().total_amount == existing().total_amount;
+      allow delete: if false; // Historically preserved
+    }
+
+    match /order_items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidOrderItem(incoming());
+      allow update: if isSignedIn() && isValidOrderItem(incoming());
+      allow delete: if false;
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidInventoryMovement(incoming());
+      allow update, delete: if false; // Inventory logs are write-once additions
+    }
+
+    match /settings/{settingsId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidSettings(incoming());
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidAuditLog(incoming());
+      allow update, delete: if false; // Immutable audit logs for compliance
+    }
+  }
+}

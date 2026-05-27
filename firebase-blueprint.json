@@ -1,0 +1,176 @@
+{
+  "entities": {
+    "user_profiles": {
+      "title": "User Profile",
+      "description": "Represents a security and administrative staff user profile in Lual POS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier, usually matching auth UID" },
+        "email": { "type": "string", "format": "email", "description": "Email address of the staff user" },
+        "fullname": { "type": "string", "description": "The full name of the employee" },
+        "role": { "type": "string", "enum": ["Admin", "Cajero", "Mesero", "Cocina", "Supervisor"], "description": "Security-governed role for operations" },
+        "isActive": { "type": "boolean", "description": "Whether this user is active and can log in" },
+        "username": { "type": "string", "description": "Alphanumeric nickname for faster profile checks" }
+      },
+      "required": ["id", "email", "fullname", "role", "isActive"]
+    },
+    "clients": {
+      "title": "Client Context",
+      "description": "Represents registered customer profile for credit limit management",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Autoincremental identifier compatible with offline sequence" },
+        "nit_cc": { "type": "string", "description": "National registration ID unique to client" },
+        "fullname": { "type": "string", "description": "Complete legal name of the client" },
+        "telephone": { "type": "string", "description": "Contact number" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "address": { "type": "string", "description": "Physical shipping or routing address" },
+        "credit_limit": { "type": "number", "description": "Assigned credit ceiling for debit balance" },
+        "current_debt": { "type": "number", "description": "Total active debt balance" },
+        "notes": { "type": "string", "description": "Observations or special billing annotations" }
+      },
+      "required": ["id", "nit_cc", "fullname", "credit_limit", "current_debt"]
+    },
+    "products": {
+      "title": "Product Reference",
+      "description": "Inventory product with current pricing and stock parameters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" },
+        "cost_price": { "type": "number" },
+        "sale_price": { "type": "number" },
+        "stock_qty": { "type": "integer" },
+        "min_stock_qty": { "type": "integer" },
+        "category_id": { "type": "string" }
+      },
+      "required": ["id", "name", "cost_price", "sale_price", "stock_qty"]
+    },
+    "restaurant_tables": {
+      "title": "Physical Table Layout",
+      "description": "Represents the active physical table layouts and statuses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["Libre", "Ocupada", "Cuenta_Lista"] },
+        "order_started_at": { "type": "string" }
+      },
+      "required": ["id", "status"]
+    },
+    "orders": {
+      "title": "Order Invoice Record",
+      "description": "Primary sales invoice header info for calculations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "table_id": { "type": "string" },
+        "subtotal_amount": { "type": "number" },
+        "tax_amount": { "type": "number" },
+        "discount_amount": { "type": "number" },
+        "tip_amount": { "type": "number" },
+        "total_amount": { "type": "number" },
+        "total_cost_amount": { "type": "number" },
+        "net_profit_amount": { "type": "number" },
+        "payment_method_selected": { "type": "string", "enum": ["Efectivo", "Tarjeta", "Transf", "Credito"] },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "table_id", "total_amount", "payment_method_selected", "created_at"]
+    },
+    "order_items": {
+      "title": "Order Line Item Detail",
+      "description": "Nested or flat detail line of product portions sold inside an order",
+      "type": "object",
+      "properties": {
+        "order_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "unit_cost": { "type": "number" },
+        "unit_price": { "type": "number" },
+        "discount_applied": { "type": "number" }
+      },
+      "required": ["order_id", "product_name", "quantity", "unit_price"]
+    },
+    "inventory_movements": {
+      "title": "Inventory Ledger Movement",
+      "description": "Kardex record logging stock increments or decrements",
+      "type": "object",
+      "properties": {
+        "product_id": { "type": "integer" },
+        "quantity_delta": { "type": "integer" },
+        "movement_type": { "type": "string" },
+        "justification": { "type": "string" },
+        "user_id": { "type": "string" }
+      },
+      "required": ["product_id", "quantity_delta", "movement_type"]
+    },
+    "settings": {
+      "title": "Business Meta Settings",
+      "description": "Unique business info configuration document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurant_name": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "nit": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "currency": { "type": "string" },
+        "tax_percent": { "type": "number" },
+        "tip_percent": { "type": "number" },
+        "ticket_footer": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "restaurant_name", "nit"]
+    },
+    "audit_logs": {
+      "title": "Security Trail Logs",
+      "description": "System operation audit logging record",
+      "type": "object",
+      "properties": {
+        "action_type": { "type": "string" },
+        "module": { "type": "string" },
+        "action_details": { "type": "object" }
+      },
+      "required": ["action_type", "module", "action_details"]
+    }
+  },
+  "firestore": {
+    "/user_profiles/{profileId}": {
+      "schema": "user_profiles",
+      "description": "Secured user profiles searchable by authentication system"
+    },
+    "/clients/{clientId}": {
+      "schema": "clients",
+      "description": "Customer balances with credit guidelines"
+    },
+    "/products/{productId}": {
+      "schema": "products",
+      "description": "Inventory product ledger matching system inventory catalog"
+    },
+    "/restaurant_tables/{tableId}": {
+      "schema": "restaurant_tables",
+      "description": "Layout status definitions mapping active floor positions"
+    },
+    "/orders/{orderId}": {
+      "schema": "orders",
+      "description": "Invoice sales logs matching payment register"
+    },
+    "/order_items/{itemId}": {
+      "schema": "order_items",
+      "description": "Lines inside each sales order document"
+    },
+    "/inventory_movements/{movementId}": {
+      "schema": "inventory_movements",
+      "description": "Kardex record log entries for auditing product changes"
+    },
+    "/settings/{settingsId}": {
+      "schema": "settings",
+      "description": "Global business values metadata"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "audit_logs",
+      "description": "System security actions logging table"
+    }
+  }
+}
